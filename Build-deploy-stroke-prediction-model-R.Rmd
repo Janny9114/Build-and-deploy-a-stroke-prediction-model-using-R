@@ -1,0 +1,193 @@
+---
+title: "Build and deploy a stroke prediction model using R"
+date: "`r Sys.Date()`"
+output: html_document
+author: "Put your name!"
+---
+
+# About Data Analysis Report
+
+This RMarkdown file contains the report of the data analysis done for the project on building and deploying a stroke prediction model in R. It contains analysis such as data exploration, summary statistics and building the prediction models. The final report was completed on `r date()`. 
+
+**Data Description:**
+
+According to the World Health Organization (WHO) stroke is the 2nd leading cause of death globally, responsible for approximately 11% of total deaths.
+
+This data set is used to predict whether a patient is likely to get stroke based on the input parameters like gender, age, various diseases, and smoking status. Each row in the data provides relevant information about the patient.
+
+
+# Task One: Import data and data preprocessing
+
+## Load data and install packages
+
+```{r}
+install.packages("tidymodels")
+install.packages("package_name")
+install.packages("tidyverse")
+install.packages("readr")
+install.packages("skimr")
+install.packages("rsample")
+installed.packages("recipes")
+installed.packages("parsnip")
+installed.packages("glm")
+install.packages("ranger")
+library(ranger)
+library(parsnip)
+library(tidymodels)
+library(recipes)
+library(tidyverse)
+library(readr)
+library(skimr)
+library(rsample)
+install.packages("workflows")
+install.packages("tune")
+install.packages("yardstick")
+install.packages("modelgrid")
+library(yardstick)
+library(tune)
+library(workflows)
+stroke <- read_csv("C:/Users/janny/OneDrive/Desktop/healthcare-dataset-stroke-data.csv")
+
+```
+
+
+## Describe and explore the data
+
+```{r}
+summary(stroke)
+skim(stroke)
+stroke <- stroke |> mutate(bmi = as.numeric(bmi))
+stroke_clean = stroke |> mutate_at(vars(smoking_status, ever_married, work_type, gender, Residence_type), 
+            function(.var) { 
+              if_else(condition = (.var == "Unknown"), # if true (i.e. the entry is Unknown)
+                      true = as.character(NA),  # replace the value with NA
+                      false = .var # otherwise leave it as it is
+                      )
+            })
+
+stroke_clean = stroke_clean |> mutate_at(vars(smoking_status, ever_married, work_type, gender, Residence_type), 
+            function(.var) { 
+              if_else(condition = (.var == "N/A"), # if true (i.e. the entry is N/A)
+                      true = as.character(NA),  # replace the value with NA
+                      false = .var # otherwise leave it as it is
+                      )
+            })
+
+summary(stroke_clean, na.rm = TRUE)
+skim(stroke_clean)
+stroke_clean$stroke <- as.factor(stroke_clean$stroke)
+stroke_clean$id = as.factor(stroke_clean$id)
+stroke_clean$gender = as.factor(stroke_clean$gender)
+stroke_clean$age = as.factor(stroke_clean$age)
+stroke_clean$ever_married = as.factor(stroke_clean$ever_married)
+stroke_clean$heart_disease = as.factor(stroke_clean$heart_disease)
+stroke_clean$work_type = as.factor(stroke_clean$work_type)
+stroke_clean$Residence_type = as.factor(stroke_clean$Residence_type)
+stroke_clean$avg_glucose_level = as.factor(stroke_clean$avg_glucose_level)
+stroke_clean$bmi = as.factor(stroke_clean$bmi)
+stroke_clean$smoking_status = as.factor(stroke_clean$smoking_status)
+
+```
+
+
+
+# Task Two: Build prediction models
+
+```{r}
+set.seed(410245)
+library(rsample)
+stroke_split <- initial_split(stroke_clean, prop = 3/4) 
+stroke_split
+stroke_train = training(stroke_split)
+stroke_testing = testing(stroke_split)
+stroke_cv = vfold_cv(stroke_train)
+stroke_recipe <- recipe(stroke ~ gender + age + hypertension + heart_disease + ever_married + work_type + Residence_type + avg_glucose_level + bmi + smoking_status, data = stroke_clean ) |> step_normalize(all_numeric()) |> step_impute_knn(all_predictors())
+stroke_train_preprocessed <- stroke_recipe %>%
+  # apply the recipe to the training data
+  prep(stroke_train) %>%
+  # extract the pre-processed training dataset
+  juice()
+stroke_train_preprocessed
+stroke_recipe
+```
+
+
+
+
+# Task Three: Evaluate and select prediction models
+
+```{r}
+rf_model <- rand_forest() |> set_args(mtry = tune()) |> set_engine("ranger", importance = "impurity") |> set_mode("classification") 
+lr_model <- logistic_reg() |> set_engine("glm") |> set_mode("classification") 
+rf_workflow <- workflow() |> add_recipe(stroke_recipe) |> add_model(rf_model)
+rf_grid <- expand.grid(mtry = c(3, 4, 5))
+rf_tune_results <- rf_workflow |> tune_grid(resamples = stroke_cv, #CV object
+            grid = rf_grid, metrics = metric_set(accuracy, roc_auc))
+rf_tune_results |> collect_metrics()
+param_final <- rf_tune_results |> select_best(metric = "accuracy")
+param_final
+rf_workflow <- rf_workflow %>% finalize_workflow(param_final)
+
+
+```
+
+
+
+# Task Four: Deploy the prediction model
+
+```{r}
+rf_fit <- rf_workflow %>%
+  # fit on the training set and evaluate on test set
+  last_fit(stroke_split)
+rf_fit
+test_performance <- rf_fit %>% collect_metrics()
+test_performance
+# generate predictions from the test set
+test_predictions <- rf_fit %>% collect_predictions()
+test_predictions
+# generate a confusion matrix
+test_predictions %>% 
+  conf_mat(truth = stroke, estimate = .pred_class)
+test_predictions <- rf_fit %>% pull(.predictions)
+test_predictions
+final_model <- fit(rf_workflow, stroke_clean)
+final_model
+
+```
+
+
+
+
+# Task Five: Findings and Conclusions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
