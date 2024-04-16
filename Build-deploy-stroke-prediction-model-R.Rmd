@@ -46,7 +46,7 @@ install.packages("modelgrid")
 library(yardstick)
 library(tune)
 library(workflows)
-stroke <- read_csv("C:/Users/janny/OneDrive/Desktop/healthcare-dataset-stroke-data.csv")
+stroke <- read_csv("healthcare-dataset-stroke-data.csv") #depend on the place the dataset is placed
 
 ```
 
